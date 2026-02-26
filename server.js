@@ -1,7 +1,12 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+// Permitir CORS amplio para evitar problemas si clientes se conectan desde otro origen
+const io = require('socket.io')(http, {
+    cors: {
+        origin: '*',
+    }
+});
 const path = require('path');
 
 // Servir el archivo HTML
@@ -49,7 +54,7 @@ io.on('connection', (socket) => {
     }
 
     socket.on('updateBoard', (newArena) => {
-        console.log('recibido tablero de', socket.id);
+        console.log('recibido tablero de', socket.id, 'filas:', Array.isArray(newArena) ? newArena.length : typeof newArena);
         arena = newArena;
         io.emit('updateBoard', arena);
         // emitir una pieza distinta para cada jugador con medio segundo de diferencia

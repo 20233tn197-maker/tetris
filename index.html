@@ -301,7 +301,7 @@
         scoreElement.innerText = player.score;
     }
 
-    const arena = createMatrix(12, 20);
+    let arena = createMatrix(12, 20);
     const player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
 
     function nextQueuePiece(){
