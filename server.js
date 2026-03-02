@@ -33,10 +33,10 @@ function randomPiece() {
 io.on('connection', (socket) => {
     console.log('Jugador conectado:', socket.id);
 
-    // agregar jugador
-    players.push({ id: socket.id, score: 0 });
-    // informar lista de jugadores a todos
-    io.emit('players', players.map(p => ({ id: p.id, score: p.score })));
+    // agregar jugador, ahora con pos y matrix vacíos inicialmente
+    players.push({ id: socket.id, score: 0, pos: { x: 0, y: 0 }, matrix: null });
+    // informar lista de jugadores a todos enviando todos los datos
+    io.emit('players', players);
 
     // si no hay pieza actual, primera conexión o reinicio
     if (!currentPiece) {
@@ -67,11 +67,21 @@ io.on('connection', (socket) => {
         });
     });
 
+    socket.on('playerState', (state) => {
+        const p = players.find(p => p.id === socket.id);
+        if (p) {
+            p.pos = state.pos;
+            p.matrix = state.matrix;
+            // Retransmitir a los otros jugadores
+            socket.broadcast.emit('playerUpdate', p);
+        }
+    });
+
     socket.on('updateScore', (score) => {
         const p = players.find(p => p.id === socket.id);
         if (p) {
             p.score = score;
-            io.emit('players', players.map(p => ({ id: p.id, score: p.score })));
+            io.emit('players', players);
         }
     });
 
@@ -80,7 +90,7 @@ io.on('connection', (socket) => {
         const idx = players.findIndex(p => p.id === socket.id);
         if (idx !== -1) {
             players.splice(idx, 1);
-            io.emit('players', players.map(p => ({ id: p.id, score: p.score })));
+            io.emit('players', players);
         }
     });
 });

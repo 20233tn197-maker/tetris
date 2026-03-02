@@ -100,6 +100,18 @@
         draw();
     });
 
+    // actualización de la posición de otro jugador
+    socket.on('playerUpdate', (updatedPlayer) => {
+        const p = players.find(p => p.id === updatedPlayer.id);
+        if (p) {
+            p.pos = updatedPlayer.pos;
+            p.matrix = updatedPlayer.matrix;
+        } else {
+            players.push(updatedPlayer);
+        }
+        draw();
+    });
+
     // nueva pieza que va a colocarse
     socket.on('newPiece', (pieceType) => {
         console.log('evento newPiece recibido:', pieceType);
@@ -184,6 +196,17 @@
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         drawMatrix(arena, {x: 0, y: 0}, ctx);
+        
+        // Dibujar a los otros jugadores
+        players.forEach(p => {
+            if (p.id !== socket.id && p.matrix) {
+                // Hacer las piezas de otros jugadores semi-transparentes
+                ctx.globalAlpha = 0.5;
+                drawMatrix(p.matrix, p.pos, ctx);
+                ctx.globalAlpha = 1.0;
+            }
+        });
+
         if (player.matrix) {
             drawMatrix(player.matrix, player.pos, ctx);
         }
@@ -213,8 +236,8 @@
                 }
             });
         });
-        // informar al servidor que la pieza se colocó
-        socket.emit('updateBoard', arena);
+        // IMPORTANTE: Ya no emitimos updateBoard aquí.
+        // Se emitirá después de arenaSweep().
     }
 
     function rotate(matrix, dir) {
@@ -233,15 +256,28 @@
             player.pos.y--;
             merge(arena, player);
             arenaSweep();
+            // Emitir el tablero DESPUÉS de limpiar líneas
+            socket.emit('updateBoard', arena);
             updateScore();
             nextQueuePiece();
+        } else {
+            // si solo se movió, emitimos la nueva posición
+            emitPlayerState();
         }
         dropCounter = 0;
     }
 
+    function emitPlayerState() {
+        socket.emit('playerState', { pos: player.pos, matrix: player.matrix });
+    }
+
     function playerMove(offset) {
         player.pos.x += offset;
-        if (collide(arena, player)) player.pos.x -= offset;
+        if (collide(arena, player)) {
+            player.pos.x -= offset;
+        } else {
+            emitPlayerState(); // Emitir solo si el movimiento fue exitoso
+        }
     }
 
     function playerReset(pieceType) {
@@ -261,6 +297,7 @@
             updateScore();
             socket.emit('updateBoard', arena);
         }
+        emitPlayerState(); // Emitir nueva pieza al reaparecer
     }
 
     function playerRotate(dir) {
@@ -276,6 +313,7 @@
                 return;
             }
         }
+        emitPlayerState(); // Emitir solo si rotó con éxito
     }
 
     let dropCounter = 0;
