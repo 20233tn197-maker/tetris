@@ -30,6 +30,22 @@ function randomPiece() {
     return pieces[(pieces.length * Math.random()) | 0];
 }
 
+// Barre filas completas del tablero y devuelve cuántas se eliminaron
+function arenaSweep(arena) {
+    let linesCleared = 0;
+    for (let y = arena.length - 1; y >= 0; --y) {
+        // Si ninguna celda de esta fila es 0, está completa
+        if (arena[y].every(cell => cell !== 0)) {
+            arena.splice(y, 1);          // eliminar fila completa
+            arena.unshift(new Array(arena[0].length).fill(0)); // agregar fila vacía arriba
+            linesCleared++;
+            ++y; // revisa la misma posición de nuevo (bajó una)
+        }
+    }
+    console.log('arenaSweep: líneas eliminadas =', linesCleared);
+    return linesCleared;
+}
+
 io.on('connection', (socket) => {
     console.log('Jugador conectado:', socket.id);
 
@@ -54,13 +70,24 @@ io.on('connection', (socket) => {
     }
 
     socket.on('updateBoard', (newArena) => {
-        console.log('recibido tablero de', socket.id, 'filas:', Array.isArray(newArena) ? newArena.length : typeof newArena);
+        console.log('recibido tablero de', socket.id);
         arena = newArena;
+
+        // El servidor es quien hace el sweep para evitar condiciones de carrera
+        const linesCleared = arenaSweep(arena);
+
+        // Enviar el tablero autorizado (ya con filas eliminadas) a todos
         io.emit('updateBoard', arena);
+
+        // Si se eliminaron líneas, notificar al jugador que las completó
+        if (linesCleared > 0) {
+            console.log('notificando', linesCleared, 'línea(s) eliminada(s) a', socket.id);
+            io.to(socket.id).emit('linesCleared', linesCleared);
+        }
+
         // emitir una pieza distinta para cada jugador con medio segundo de diferencia
         players.forEach((p, idx) => {
             const piece = randomPiece();
-            console.log('programando envío de', piece, 'a', p.id, 'en', idx * 500, 'ms');
             setTimeout(() => {
                 io.to(p.id).emit('newPiece', piece);
             }, idx * 500);
